@@ -1,0 +1,312 @@
+package threads
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"slices"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/ModulrCloud/ModulrAnchorsCore/block_pack"
+	"github.com/ModulrCloud/ModulrAnchorsCore/cryptography"
+	"github.com/ModulrCloud/ModulrAnchorsCore/databases"
+	"github.com/ModulrCloud/ModulrAnchorsCore/globals"
+	"github.com/ModulrCloud/ModulrAnchorsCore/handlers"
+	"github.com/ModulrCloud/ModulrAnchorsCore/structures"
+	"github.com/ModulrCloud/ModulrAnchorsCore/utils"
+	"github.com/ModulrCloud/ModulrAnchorsCore/websocket_pack"
+
+	"github.com/gorilla/websocket"
+)
+
+type ProofsGrabber struct {
+	EpochId             int
+	AcceptedIndex       int
+	AcceptedHash        string
+	AfpForPrevious      structures.AggregatedFinalizationProof
+	HuntingForBlockId   string
+	HuntingForBlockHash string
+}
+
+var PROOFS_GRABBER_MUTEX = sync.RWMutex{}
+
+var WEBSOCKET_CONNECTIONS = make(map[string]*websocket.Conn) // quorumMember => websocket handler
+
+var FINALIZATION_PROOFS_CACHE = make(map[string]string) // quorumMember => finalization proof signa
+
+var PROOFS_GRABBER = ProofsGrabber{
+	EpochId: -1,
+}
+
+var BLOCK_TO_SHARE *block_pack.Block = &block_pack.Block{
+	Index: -1,
+}
+
+var QUORUM_WAITER_FOR_FINALIZATION_PROOFS *utils.QuorumWaiter
+
+func BlocksSharingAndProofsGrabingThread() {
+
+	for {
+
+		handlers.APPROVEMENT_THREAD_METADATA.RWMutex.RLock()
+
+		epochHandlerRef := &handlers.APPROVEMENT_THREAD_METADATA.Handler.EpochDataHandler
+
+		currentLeaderPubKey := epochHandlerRef.LeadersSequence[epochHandlerRef.CurrentLeaderIndex]
+
+		if currentLeaderPubKey != globals.CONFIGURATION.PublicKey || !utils.EpochStillFresh(&handlers.APPROVEMENT_THREAD_METADATA.Handler) {
+
+			handlers.APPROVEMENT_THREAD_METADATA.RWMutex.RUnlock()
+
+			time.Sleep(200 * time.Millisecond)
+
+			continue
+
+		}
+
+		PROOFS_GRABBER_MUTEX.RLock()
+
+		if PROOFS_GRABBER.EpochId != epochHandlerRef.Id {
+
+			PROOFS_GRABBER_MUTEX.RUnlock()
+
+			PROOFS_GRABBER_MUTEX.Lock()
+
+			// Try to get stored proofs grabber from db
+
+			dbKey := []byte(strconv.Itoa(epochHandlerRef.Id) + ":PROOFS_GRABBER")
+
+			if rawGrabber, err := databases.FINALIZATION_VOTING_STATS.Get(dbKey, nil); err == nil {
+
+				json.Unmarshal(rawGrabber, &PROOFS_GRABBER)
+
+			} else {
+
+				// Assign initial value of proofs grabber for each new epoch
+
+				PROOFS_GRABBER = ProofsGrabber{
+
+					EpochId: epochHandlerRef.Id,
+
+					AcceptedIndex: -1,
+
+					AcceptedHash: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+				}
+
+				// Also - clean the mapping with the signatures for AFP
+
+				FINALIZATION_PROOFS_CACHE = make(map[string]string)
+
+			}
+
+			// And store new descriptor
+
+			if serialized, err := json.Marshal(PROOFS_GRABBER); err == nil {
+
+				databases.FINALIZATION_VOTING_STATS.Put(dbKey, serialized, nil)
+
+			}
+
+			PROOFS_GRABBER_MUTEX.Unlock()
+
+			// Also, open connections with quorum here. Create QuorumWaiter etc.
+
+			utils.OpenWebsocketConnectionsWithQuorum(epochHandlerRef.Quorum, WEBSOCKET_CONNECTIONS)
+
+			// Create new QuorumWaiter
+
+			QUORUM_WAITER_FOR_FINALIZATION_PROOFS = utils.NewQuorumWaiter(len(epochHandlerRef.Quorum))
+
+		} else {
+
+			PROOFS_GRABBER_MUTEX.RUnlock()
+
+		}
+
+		runFinalizationProofsGrabbing(epochHandlerRef)
+
+		handlers.APPROVEMENT_THREAD_METADATA.RWMutex.RUnlock()
+
+	}
+
+}
+
+func runFinalizationProofsGrabbing(epochHandler *structures.EpochDataHandler) {
+
+	// Call SendAndWait here
+	// Once received 2/3 votes for block - continue
+
+	PROOFS_GRABBER_MUTEX.Lock()
+
+	defer PROOFS_GRABBER_MUTEX.Unlock()
+
+	epochFullId := epochHandler.Hash + "#" + strconv.Itoa(epochHandler.Id)
+
+	blockIndexToHunt := strconv.Itoa(PROOFS_GRABBER.AcceptedIndex + 1)
+
+	blockIdForHunting := strconv.Itoa(epochHandler.Id) + ":" + globals.CONFIGURATION.PublicKey + ":" + blockIndexToHunt
+
+	blockIdThatInPointer := strconv.Itoa(epochHandler.Id) + ":" + globals.CONFIGURATION.PublicKey + ":" + strconv.Itoa(BLOCK_TO_SHARE.Index)
+
+	majority := utils.GetQuorumMajority(epochHandler)
+
+	if blockIdForHunting != blockIdThatInPointer {
+
+		blockDataRaw, errDB := databases.BLOCKS.Get([]byte(blockIdForHunting), nil)
+
+		if errDB == nil {
+
+			if parseErr := json.Unmarshal(blockDataRaw, BLOCK_TO_SHARE); parseErr != nil {
+				return
+			}
+
+		} else {
+			return
+		}
+
+	}
+
+	blockHash := BLOCK_TO_SHARE.GetHash()
+
+	PROOFS_GRABBER.HuntingForBlockId = blockIdForHunting
+
+	PROOFS_GRABBER.HuntingForBlockHash = blockHash
+
+	if len(FINALIZATION_PROOFS_CACHE) < majority {
+
+		// Build message - then parse to JSON
+
+		message := websocket_pack.WsFinalizationProofRequest{
+			Route:            "get_finalization_proof",
+			Block:            *BLOCK_TO_SHARE,
+			PreviousBlockAfp: PROOFS_GRABBER.AfpForPrevious,
+		}
+
+		if messageJsoned, err := json.Marshal(message); err == nil {
+
+			// Create max delay
+
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
+
+			responses, ok := QUORUM_WAITER_FOR_FINALIZATION_PROOFS.SendAndWait(ctx, messageJsoned, epochHandler.Quorum, WEBSOCKET_CONNECTIONS, majority)
+
+			if !ok {
+				return
+			}
+
+			for _, raw := range responses {
+
+				var parsedFinalizationProof websocket_pack.WsFinalizationProofResponse
+
+				if err := json.Unmarshal(raw, &parsedFinalizationProof); err == nil {
+
+					// Now verify proof and parse requests
+
+					if parsedFinalizationProof.VotedForHash == PROOFS_GRABBER.HuntingForBlockHash {
+
+						// Verify the finalization proof
+
+						dataThatShouldBeSigned := strings.Join(
+
+							[]string{PROOFS_GRABBER.AcceptedHash, PROOFS_GRABBER.HuntingForBlockId, PROOFS_GRABBER.HuntingForBlockHash, epochFullId}, ":",
+						)
+
+						finalizationProofIsOk := slices.Contains(epochHandler.Quorum, parsedFinalizationProof.Voter) && cryptography.VerifySignature(
+
+							dataThatShouldBeSigned, parsedFinalizationProof.Voter, parsedFinalizationProof.FinalizationProof,
+						)
+
+						if finalizationProofIsOk {
+
+							FINALIZATION_PROOFS_CACHE[parsedFinalizationProof.Voter] = parsedFinalizationProof.FinalizationProof
+
+						}
+
+					}
+
+				}
+
+			}
+
+		}
+
+	}
+
+	if len(FINALIZATION_PROOFS_CACHE) >= majority {
+
+		aggregatedFinalizationProof := structures.AggregatedFinalizationProof{
+
+			PrevBlockHash: PROOFS_GRABBER.AcceptedHash,
+
+			BlockId: blockIdForHunting,
+
+			BlockHash: blockHash,
+
+			Proofs: FINALIZATION_PROOFS_CACHE,
+		}
+
+		keyBytes := []byte("AFP:" + blockIdForHunting)
+
+		valueBytes, _ := json.Marshal(aggregatedFinalizationProof)
+
+		// Store AFP locally
+
+		databases.EPOCH_DATA.Put(keyBytes, valueBytes, nil)
+
+		// Repeat procedure for the next block and store the progress
+
+		proofGrabberKeyBytes := []byte(strconv.Itoa(epochHandler.Id) + ":PROOFS_GRABBER")
+
+		proofGrabberValueBytes, marshalErr := json.Marshal(PROOFS_GRABBER)
+
+		if marshalErr == nil {
+
+			proofsGrabberStoreErr := databases.FINALIZATION_VOTING_STATS.Put(proofGrabberKeyBytes, proofGrabberValueBytes, nil)
+
+			if proofsGrabberStoreErr == nil {
+
+				PROOFS_GRABBER.AfpForPrevious = aggregatedFinalizationProof
+
+				PROOFS_GRABBER.AcceptedIndex++
+
+				PROOFS_GRABBER.AcceptedHash = PROOFS_GRABBER.HuntingForBlockHash
+
+				if PROOFS_GRABBER.AcceptedIndex > 0 {
+
+					msg := fmt.Sprintf(
+						"%sApproved height for epoch %s%d %sis %s%d %s(hash:%s...) %s(%.3f%% agreements)",
+						utils.RED_COLOR,
+						utils.CYAN_COLOR,
+						epochHandler.Id,
+						utils.RED_COLOR,
+						utils.CYAN_COLOR,
+						PROOFS_GRABBER.AcceptedIndex-1,
+						utils.CYAN_COLOR,
+						PROOFS_GRABBER.AfpForPrevious.PrevBlockHash[:8],
+						utils.GREEN_COLOR,
+						float64(len(FINALIZATION_PROOFS_CACHE))/float64(len(epochHandler.Quorum))*100,
+					)
+
+					utils.LogWithTime(msg, utils.WHITE_COLOR)
+
+				}
+
+				// Delete finalization proofs that we don't need more
+
+				FINALIZATION_PROOFS_CACHE = make(map[string]string)
+
+			} else {
+				return
+			}
+
+		} else {
+			return
+		}
+
+	}
+
+}

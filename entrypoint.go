@@ -32,7 +32,7 @@ func RunAnchorsChains() {
 
 	//_________________________ RUN SEVERAL LOGICAL THREADS _________________________
 
-	//✅ 1.Thread to find AEFPs and change the epoch for AT
+	//✅ 1.Thread to rotate epoch
 	go threads.EpochRotationThread()
 
 	//✅ 2.Share our blocks within quorum members and get the finalization proofs

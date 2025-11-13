@@ -17,8 +17,43 @@ import (
 	"github.com/lxzan/gws"
 )
 
-// Only one block creator can request proof for block at a choosen period of time T
-var BLOCK_CREATOR_REQUEST_MUTEX = sync.Mutex{}
+// blockCreatorMutexRegistry keeps a dedicated mutex for each block creator to
+// make sure each creator can only request a single finalization proof at a time.
+var blockCreatorMutexRegistry = struct {
+	sync.RWMutex
+	data map[string]*sync.Mutex
+}{
+	data: make(map[string]*sync.Mutex),
+}
+
+func getCreatorMutex(creator string, anchorsRegistry []string) (*sync.Mutex, bool) {
+	blockCreatorMutexRegistry.RLock()
+	mutex, ok := blockCreatorMutexRegistry.data[creator]
+	blockCreatorMutexRegistry.RUnlock()
+	if ok {
+		return mutex, true
+	}
+
+	allowed := false
+	for _, anchor := range anchorsRegistry {
+		if anchor == creator {
+			allowed = true
+			break
+		}
+	}
+	if !allowed {
+		return nil, false
+	}
+
+	blockCreatorMutexRegistry.Lock()
+	defer blockCreatorMutexRegistry.Unlock()
+	if mutex, ok = blockCreatorMutexRegistry.data[creator]; ok {
+		return mutex, true
+	}
+	mutex = &sync.Mutex{}
+	blockCreatorMutexRegistry.data[creator] = mutex
+	return mutex, true
+}
 
 func GetFinalizationProof(parsedRequest WsFinalizationProofRequest, connection *gws.Conn) {
 
@@ -31,6 +66,12 @@ func GetFinalizationProof(parsedRequest WsFinalizationProofRequest, connection *
 	defer handlers.APPROVEMENT_THREAD_METADATA.RWMutex.RUnlock()
 
 	epochHandler := &handlers.APPROVEMENT_THREAD_METADATA.Handler.EpochDataHandler
+
+	creatorMutex, allowed := getCreatorMutex(parsedRequest.Block.Creator, epochHandler.AnchorsRegistry)
+
+	if !allowed {
+		return
+	}
 
 	epochIndex := epochHandler.Id
 
@@ -60,9 +101,9 @@ func GetFinalizationProof(parsedRequest WsFinalizationProofRequest, connection *
 
 		if parsedRequest.Block.VerifySignature() && !utils.SignalAboutEpochRotationExists(epochIndex) {
 
-			BLOCK_CREATOR_REQUEST_MUTEX.Lock()
+			creatorMutex.Lock()
 
-			defer BLOCK_CREATOR_REQUEST_MUTEX.Unlock()
+			defer creatorMutex.Unlock()
 
 			if localVotingDataForLeader.Index == int(parsedRequest.Block.Index) {
 

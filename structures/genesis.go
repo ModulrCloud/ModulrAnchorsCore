@@ -6,6 +6,7 @@ type NetworkParameters struct {
 	BlockTime           int64 `json:"BLOCK_TIME"`
 	MaxBlockSizeInBytes int64 `json:"MAX_BLOCK_SIZE_IN_BYTES"`
 	TxLimitPerBlock     int   `json:"TXS_LIMIT_PER_BLOCK"`
+	MaxEpochsToSupport  int   `json:"MAX_EPOCHS_TO_SUPPORT"`
 }
 
 func (src *NetworkParameters) CopyNetworkParameters() NetworkParameters {
@@ -15,6 +16,7 @@ func (src *NetworkParameters) CopyNetworkParameters() NetworkParameters {
 		BlockTime:           src.BlockTime,
 		MaxBlockSizeInBytes: src.MaxBlockSizeInBytes,
 		TxLimitPerBlock:     src.TxLimitPerBlock,
+		MaxEpochsToSupport:  src.MaxEpochsToSupport,
 	}
 }
 

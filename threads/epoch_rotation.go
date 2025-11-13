@@ -1,7 +1,6 @@
 package threads
 
 import (
-	"context"
 	"encoding/json"
 	"strconv"
 	"strings"
@@ -42,69 +41,6 @@ func EpochRotationThread() {
 			if utils.SignalAboutEpochRotationExists(epochHandlerRef.Id) {
 
 				majority := utils.GetQuorumMajority(epochHandlerRef)
-
-				quorumMembers := utils.GetQuorumUrlsAndPubkeys(epochHandlerRef)
-
-				haveEverything := AEFP_AND_FIRST_BLOCK_DATA.Aefp != nil && AEFP_AND_FIRST_BLOCK_DATA.FirstBlockHash != ""
-
-				if !haveEverything {
-
-					// 1. Find AEFPs
-
-					if AEFP_AND_FIRST_BLOCK_DATA.Aefp == nil {
-
-						// Try to find locally first
-
-						keyValue := []byte("AEFP:" + strconv.Itoa(epochHandlerRef.Id))
-
-						aefpRaw, err := databases.EPOCH_DATA.Get(keyValue, nil)
-
-						var aefp structures.AggregatedEpochFinalizationProof
-
-						errParse := json.Unmarshal(aefpRaw, &aefp)
-
-						if err == nil && errParse == nil {
-
-							AEFP_AND_FIRST_BLOCK_DATA.Aefp = &aefp
-
-						} else {
-
-							// Ask quorum for AEFP
-
-							resultCh := make(chan *structures.AggregatedEpochFinalizationProof, 1)
-							ctx, cancel := context.WithCancel(context.Background())
-
-							for _, quorumMember := range quorumMembers {
-								go fetchAefp(ctx, quorumMember.Url, epochHandlerRef.Quorum, majority, epochFullID, resultCh)
-							}
-
-							select {
-
-							case value := <-resultCh:
-								AEFP_AND_FIRST_BLOCK_DATA.Aefp = value
-								cancel()
-							case <-time.After(2 * time.Second):
-								cancel()
-							}
-						}
-					}
-
-					// 2. Find first block in this epoch
-					if AEFP_AND_FIRST_BLOCK_DATA.FirstBlockHash == "" {
-
-						firstBlockData := GetFirstBlockDataFromDB(epochHandlerRef.Id)
-
-						if firstBlockData != nil {
-
-							AEFP_AND_FIRST_BLOCK_DATA.FirstBlockCreator = firstBlockData.FirstBlockCreator
-
-							AEFP_AND_FIRST_BLOCK_DATA.FirstBlockHash = firstBlockData.FirstBlockHash
-
-						}
-
-					}
-
-				}
 
 				if AEFP_AND_FIRST_BLOCK_DATA.Aefp != nil && AEFP_AND_FIRST_BLOCK_DATA.FirstBlockHash != "" {
 

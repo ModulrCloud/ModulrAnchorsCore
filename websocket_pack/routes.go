@@ -36,122 +36,116 @@ func GetFinalizationProof(parsedRequest WsFinalizationProofRequest, connection *
 
 	epochFullID := epochHandler.Hash + "#" + strconv.Itoa(epochIndex)
 
-	itsLeader := epochHandler.LeadersSequence[epochHandler.CurrentLeaderIndex] == parsedRequest.Block.Creator
+	localVotingDataForLeader := structures.NewVotingStatTemplate()
 
-	if itsLeader {
+	localVotingDataRaw, err := databases.FINALIZATION_VOTING_STATS.Get([]byte(strconv.Itoa(epochIndex)+":"+parsedRequest.Block.Creator), nil)
 
-		localVotingDataForLeader := structures.NewVotingStatTemplate()
+	if err == nil {
 
-		localVotingDataRaw, err := databases.FINALIZATION_VOTING_STATS.Get([]byte(strconv.Itoa(epochIndex)+":"+parsedRequest.Block.Creator), nil)
+		json.Unmarshal(localVotingDataRaw, &localVotingDataForLeader)
 
-		if err == nil {
+	}
 
-			json.Unmarshal(localVotingDataRaw, &localVotingDataForLeader)
+	proposedBlockHash := parsedRequest.Block.GetHash()
 
-		}
+	itsSameChainSegment := localVotingDataForLeader.Index < int(parsedRequest.Block.Index) || localVotingDataForLeader.Index == int(parsedRequest.Block.Index) && proposedBlockHash == localVotingDataForLeader.Hash && parsedRequest.Block.Epoch == epochFullID
 
-		proposedBlockHash := parsedRequest.Block.GetHash()
+	if itsSameChainSegment {
 
-		itsSameChainSegment := localVotingDataForLeader.Index < int(parsedRequest.Block.Index) || localVotingDataForLeader.Index == int(parsedRequest.Block.Index) && proposedBlockHash == localVotingDataForLeader.Hash && parsedRequest.Block.Epoch == epochFullID
+		proposedBlockId := strconv.Itoa(epochIndex) + ":" + parsedRequest.Block.Creator + ":" + strconv.Itoa(int(parsedRequest.Block.Index))
 
-		if itsSameChainSegment {
+		previousBlockIndex := int(parsedRequest.Block.Index - 1)
 
-			proposedBlockId := strconv.Itoa(epochIndex) + ":" + parsedRequest.Block.Creator + ":" + strconv.Itoa(int(parsedRequest.Block.Index))
+		var futureVotingDataToStore structures.VotingStat
 
-			previousBlockIndex := int(parsedRequest.Block.Index - 1)
+		if parsedRequest.Block.VerifySignature() && !utils.SignalAboutEpochRotationExists(epochIndex) {
 
-			var futureVotingDataToStore structures.VotingStat
+			BLOCK_CREATOR_REQUEST_MUTEX.Lock()
 
-			if parsedRequest.Block.VerifySignature() && !utils.SignalAboutEpochRotationExists(epochIndex) {
+			defer BLOCK_CREATOR_REQUEST_MUTEX.Unlock()
 
-				BLOCK_CREATOR_REQUEST_MUTEX.Lock()
+			if localVotingDataForLeader.Index == int(parsedRequest.Block.Index) {
 
-				defer BLOCK_CREATOR_REQUEST_MUTEX.Unlock()
+				futureVotingDataToStore = localVotingDataForLeader
 
-				if localVotingDataForLeader.Index == int(parsedRequest.Block.Index) {
+			} else {
 
-					futureVotingDataToStore = localVotingDataForLeader
+				futureVotingDataToStore = structures.VotingStat{
 
-				} else {
+					Index: previousBlockIndex,
 
-					futureVotingDataToStore = structures.VotingStat{
+					Hash: parsedRequest.PreviousBlockAfp.BlockHash,
 
-						Index: previousBlockIndex,
-
-						Hash: parsedRequest.PreviousBlockAfp.BlockHash,
-
-						Afp: parsedRequest.PreviousBlockAfp,
-					}
-
+					Afp: parsedRequest.PreviousBlockAfp,
 				}
 
-				// This branch related to case when block index is > 0 (so it's not the first block by leader)
+			}
 
-				previousBlockId := strconv.Itoa(epochIndex) + ":" + parsedRequest.Block.Creator + ":" + strconv.Itoa(previousBlockIndex)
+			// This branch related to case when block index is > 0 (so it's not the first block by leader)
 
-				// Check if AFP inside related to previous block AFP
+			previousBlockId := strconv.Itoa(epochIndex) + ":" + parsedRequest.Block.Creator + ":" + strconv.Itoa(previousBlockIndex)
 
-				if previousBlockId == parsedRequest.PreviousBlockAfp.BlockId && utils.VerifyAggregatedFinalizationProof(&parsedRequest.PreviousBlockAfp, epochHandler) {
+			// Check if AFP inside related to previous block AFP
 
-					// Store the block and return finalization proof
+			if previousBlockId == parsedRequest.PreviousBlockAfp.BlockId && utils.VerifyAggregatedFinalizationProof(&parsedRequest.PreviousBlockAfp, epochHandler) {
 
-					blockBytes, err := json.Marshal(parsedRequest.Block)
+				// Store the block and return finalization proof
+
+				blockBytes, err := json.Marshal(parsedRequest.Block)
+
+				if err == nil {
+
+					// 1. Store the block
+
+					err = databases.BLOCKS.Put([]byte(proposedBlockId), blockBytes, nil)
 
 					if err == nil {
 
-						// 1. Store the block
-
-						err = databases.BLOCKS.Put([]byte(proposedBlockId), blockBytes, nil)
+						afpBytes, err := json.Marshal(parsedRequest.PreviousBlockAfp)
 
 						if err == nil {
 
-							afpBytes, err := json.Marshal(parsedRequest.PreviousBlockAfp)
+							// 2. Store the AFP for previous block
 
-							if err == nil {
+							errStore := databases.EPOCH_DATA.Put([]byte("AFP:"+parsedRequest.PreviousBlockAfp.BlockId), afpBytes, nil)
 
-								// 2. Store the AFP for previous block
+							votingStatBytes, errParse := json.Marshal(futureVotingDataToStore)
 
-								errStore := databases.EPOCH_DATA.Put([]byte("AFP:"+parsedRequest.PreviousBlockAfp.BlockId), afpBytes, nil)
+							if errStore == nil && errParse == nil {
 
-								votingStatBytes, errParse := json.Marshal(futureVotingDataToStore)
+								// 3. Store the voting stats
 
-								if errStore == nil && errParse == nil {
+								err := databases.FINALIZATION_VOTING_STATS.Put([]byte(strconv.Itoa(epochIndex)+":"+parsedRequest.Block.Creator), votingStatBytes, nil)
 
-									// 3. Store the voting stats
+								if err == nil {
 
-									err := databases.FINALIZATION_VOTING_STATS.Put([]byte(strconv.Itoa(epochIndex)+":"+parsedRequest.Block.Creator), votingStatBytes, nil)
+									// Only after we stored the these 3 components = generate signature (finalization proof)
+
+									dataToSign, prevBlockHash := "", ""
+
+									if parsedRequest.Block.Index == 0 {
+
+										prevBlockHash = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+
+									} else {
+
+										prevBlockHash = parsedRequest.PreviousBlockAfp.BlockHash
+
+									}
+
+									dataToSign += strings.Join([]string{prevBlockHash, proposedBlockId, proposedBlockHash, epochFullID}, ":")
+
+									response := WsFinalizationProofResponse{
+										Voter:             globals.CONFIGURATION.PublicKey,
+										FinalizationProof: cryptography.GenerateSignature(globals.CONFIGURATION.PrivateKey, dataToSign),
+										VotedForHash:      proposedBlockHash,
+									}
+
+									jsonResponse, err := json.Marshal(response)
 
 									if err == nil {
 
-										// Only after we stored the these 3 components = generate signature (finalization proof)
-
-										dataToSign, prevBlockHash := "", ""
-
-										if parsedRequest.Block.Index == 0 {
-
-											prevBlockHash = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-
-										} else {
-
-											prevBlockHash = parsedRequest.PreviousBlockAfp.BlockHash
-
-										}
-
-										dataToSign += strings.Join([]string{prevBlockHash, proposedBlockId, proposedBlockHash, epochFullID}, ":")
-
-										response := WsFinalizationProofResponse{
-											Voter:             globals.CONFIGURATION.PublicKey,
-											FinalizationProof: cryptography.GenerateSignature(globals.CONFIGURATION.PrivateKey, dataToSign),
-											VotedForHash:      proposedBlockHash,
-										}
-
-										jsonResponse, err := json.Marshal(response)
-
-										if err == nil {
-
-											connection.WriteMessage(gws.OpcodeText, jsonResponse)
-
-										}
+										connection.WriteMessage(gws.OpcodeText, jsonResponse)
 
 									}
 

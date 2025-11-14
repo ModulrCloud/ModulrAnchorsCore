@@ -122,13 +122,11 @@ func GetFinalizationProof(parsedRequest WsFinalizationProofRequest, connection *
 
 			}
 
-			// This branch related to case when block index is > 0 (so it's not the first block by leader)
-
 			previousBlockId := strconv.Itoa(epochIndex) + ":" + parsedRequest.Block.Creator + ":" + strconv.Itoa(previousBlockIndex)
 
 			// Check if AFP inside related to previous block AFP
 
-			if previousBlockId == parsedRequest.PreviousBlockAfp.BlockId && utils.VerifyAggregatedFinalizationProof(&parsedRequest.PreviousBlockAfp, epochHandler) {
+			if parsedRequest.Block.Index == 0 || previousBlockId == parsedRequest.PreviousBlockAfp.BlockId && utils.VerifyAggregatedFinalizationProof(&parsedRequest.PreviousBlockAfp, epochHandler) {
 
 				// Store the block and return finalization proof
 

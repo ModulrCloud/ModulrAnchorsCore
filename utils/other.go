@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -34,12 +35,9 @@ const (
 var SHUTDOWN_ONCE sync.Once
 
 var kernelBanner = []string{
-	" __  __           _       _ _             _                            ",
-	"|  \\  / | ___   __| |_   _| | | ___   ___ | | __ _ _ __ _ __   ___ _ __ ",
-	"| |\\/| |/ _ \\ / _` | | | | | |/ _ \\ / _ \\| |/ _` | '__| '_ \\ / _ \\ '__|",
-	"| |  | | (_) | (_| | |_| | | | (_) | (_) | | (_| | |  | | | |  __/ |   ",
-	"|_|  |_|\\___/ \\__,_|\\__,_|_|_|\\___/ \\___/|_|\\__,_|_|  |_| |_|\\___|_|   ",
-	"                modulr anchors kernel bootstrap                         ",
+	"modulr anchors kernel bootstrap",
+	"consensus mesh primed • transport warm",
+	"telemetry uplink locked • shell glow ready",
 }
 
 func GracefulShutdown() {
@@ -74,11 +72,78 @@ func LogWithTime(msg, msgColor string) {
 }
 
 func PrintKernelBanner() {
-	colors := []string{CYAN_COLOR, GREEN_COLOR, YELLOW_COLOR, MAGENTA_COLOR, WHITE_COLOR}
-	for idx, line := range kernelBanner {
-		color := colors[idx%len(colors)]
-		LogWithTime(line, color)
+	PrintShellDivider()
+	textColors := []string{CYAN_COLOR, GREEN_COLOR, YELLOW_COLOR, MAGENTA_COLOR, WHITE_COLOR}
+	accentPalette := []string{"\u001b[38;5;81m", "\u001b[38;5;117m", "\u001b[38;5;159m"}
+	maxWidth := 0
+	for _, line := range kernelBanner {
+		if len(line) > maxWidth {
+			maxWidth = len(line)
+		}
 	}
+	innerWidth := maxWidth + 2
+	LogWithTime(buildBannerBorder('╭', '╮', innerWidth, accentPalette), "")
+	for idx, line := range kernelBanner {
+		textColor := textColors[idx%len(textColors)]
+		frameColor := accentPalette[idx%len(accentPalette)]
+		LogWithTime(buildBannerLine(line, maxWidth, frameColor, textColor), "")
+	}
+	LogWithTime(buildBannerBorder('╰', '╯', innerWidth, accentPalette), "")
+	PrintShellDivider()
+}
+
+func PrintShellDivider() {
+	palette := []string{CYAN_COLOR, MAGENTA_COLOR, YELLOW_COLOR, GREEN_COLOR}
+	glyphs := []rune{'╺', '━', '╸', '╾'}
+	var builder strings.Builder
+	width := 48
+	for i := 0; i < width; i++ {
+		builder.WriteString(palette[i%len(palette)])
+		builder.WriteRune(glyphs[i%len(glyphs)])
+	}
+	builder.WriteString(RESET_COLOR)
+	LogWithTime(builder.String(), "")
+}
+
+func buildBannerBorder(left, right rune, innerWidth int, palette []string) string {
+	var builder strings.Builder
+	paletteLen := len(palette)
+	for idx := 0; idx < paletteLen; idx++ {
+		if palette[idx] == "" {
+			palette[idx] = WHITE_COLOR
+		}
+	}
+	builder.WriteString(palette[0])
+	builder.WriteRune(left)
+	for i := 0; i < innerWidth; i++ {
+		builder.WriteString(palette[(i+1)%paletteLen])
+		builder.WriteRune('─')
+	}
+	builder.WriteString(palette[(innerWidth+1)%paletteLen])
+	builder.WriteRune(right)
+	builder.WriteString(RESET_COLOR)
+	return builder.String()
+}
+
+func buildBannerLine(content string, maxWidth int, frameColor, textColor string) string {
+	var builder strings.Builder
+	padding := maxWidth - len(content)
+	if padding < 0 {
+		padding = 0
+	}
+	builder.WriteString(frameColor)
+	builder.WriteRune('│')
+	builder.WriteString(RESET_COLOR)
+	builder.WriteString(" ")
+	builder.WriteString(textColor)
+	builder.WriteString(content)
+	builder.WriteString(strings.Repeat(" ", padding))
+	builder.WriteString(RESET_COLOR)
+	builder.WriteString(" ")
+	builder.WriteString(frameColor)
+	builder.WriteRune('│')
+	builder.WriteString(RESET_COLOR)
+	return builder.String()
 }
 
 func Blake3(data string) string {

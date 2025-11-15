@@ -90,6 +90,10 @@ func GetFinalizationProof(parsedRequest WsFinalizationProofRequest, connection *
 
 	epochFullID := epochHandler.Hash + "#" + strconv.Itoa(epochIndex)
 
+	if utils.IsFinalizationProofsDisabled(epochIndex, parsedRequest.Block.Creator) {
+		return
+	}
+
 	localVotingDataForLeader := structures.NewVotingStatTemplate()
 
 	localVotingDataRaw, err := databases.FINALIZATION_VOTING_STATS.Get([]byte(strconv.Itoa(epochIndex)+":"+parsedRequest.Block.Creator), nil)

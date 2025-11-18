@@ -99,7 +99,7 @@ func handleMatchingProposal(ctx *fasthttp.RequestCtx, current, proposal structur
 		return
 	}
 
-	if strings.ToLower(current.Hash) != strings.ToLower(proposal.Hash) {
+	if !strings.EqualFold(current.Hash, proposal.Hash) {
 		ctx.SetStatusCode(fasthttp.StatusConflict)
 		ctx.Write([]byte(`{"err":"hash mismatch"}`))
 		return

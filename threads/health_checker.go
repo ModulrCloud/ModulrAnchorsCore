@@ -3,6 +3,7 @@ package threads
 import (
 	"fmt"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -76,15 +77,16 @@ func checkCreatorsHealth() {
 		}
 	}
 
+	summaryColor := utils.GREEN_COLOR
+	metrics := []string{
+		coloredMetric("Epochs", totalEpochs, utils.CYAN_COLOR, summaryColor),
+		coloredMetric("Total_creators", totalCreators, utils.CYAN_COLOR, summaryColor),
+		coloredMetric("Active_creators", activeCreators, utils.CYAN_COLOR, summaryColor),
+		coloredMetric("Stalled_creators", stalledCreators, utils.CYAN_COLOR, summaryColor),
+	}
 	utils.LogWithTime(
-		fmt.Sprintf(
-			"health checker: iteration summary epochs=%d total_creators=%d active_creators=%d stalled_creators=%d",
-			totalEpochs,
-			totalCreators,
-			activeCreators,
-			stalledCreators,
-		),
-		utils.GREEN_COLOR,
+		fmt.Sprintf("Health checker: Iteration summary %s", strings.Join(metrics, " ")),
+		summaryColor,
 	)
 }
 

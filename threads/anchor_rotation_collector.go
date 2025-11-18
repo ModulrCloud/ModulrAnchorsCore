@@ -44,15 +44,16 @@ func collectRotationProofs() {
 		proofsCollected += proofs
 	}
 
+	summaryColor := utils.GREEN_COLOR
+	metrics := []string{
+		coloredMetric("Epochs", totalEpochs, utils.CYAN_COLOR, summaryColor),
+		coloredMetric("Total_creators", totalCreators, utils.CYAN_COLOR, summaryColor),
+		coloredMetric("Rotation_candidates", rotationCandidates, utils.CYAN_COLOR, summaryColor),
+		coloredMetric("Proofs_collected", proofsCollected, utils.CYAN_COLOR, summaryColor),
+	}
 	utils.LogWithTime(
-		fmt.Sprintf(
-			"anchor rotation: iteration summary epochs=%d total_creators=%d rotation_candidates=%d proofs_collected=%d",
-			totalEpochs,
-			totalCreators,
-			rotationCandidates,
-			proofsCollected,
-		),
-		utils.GREEN_COLOR,
+		fmt.Sprintf("Anchor rotation: Iteration summary %s", strings.Join(metrics, " ")),
+		summaryColor,
 	)
 }
 

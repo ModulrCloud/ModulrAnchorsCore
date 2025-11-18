@@ -85,9 +85,13 @@ func generateBlock(epochHandlerRef *structures.EpochDataHandler) {
 		return
 	}
 
-	extraData := make(map[string]string, len(globals.CONFIGURATION.ExtraDataToBlock))
+	fields := make(map[string]string, len(globals.CONFIGURATION.ExtraDataToBlock))
 	for key, value := range globals.CONFIGURATION.ExtraDataToBlock {
-		extraData[key] = value
+		fields[key] = value
+	}
+	extraData := structures.BlockExtraData{
+		Fields:         fields,
+		RotationProofs: handlers.DrainRotationProofsFromMempool(),
 	}
 
 	blockDbAtomicBatch := new(leveldb.Batch)

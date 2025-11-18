@@ -43,8 +43,11 @@ func RunAnchorsChains() {
 	//✅ 3.Start to generate blocks
 	go threads.BlocksGenerationThread()
 
-	//✅ 4.Start monitor anchors health
+	// ✅ 4.Start monitor anchors health
 	go threads.HealthCheckerThread()
+
+	// ✅ 5.Collect anchor rotation proofs from quorum
+	go threads.AnchorRotationCollectorThread()
 
 	//___________________ RUN SERVERS - WEBSOCKET AND HTTP __________________
 

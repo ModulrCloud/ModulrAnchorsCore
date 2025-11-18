@@ -8,28 +8,12 @@ import (
 	"strings"
 
 	"github.com/modulrcloud/modulr-anchors-core/cryptography"
-	"github.com/modulrcloud/modulr-anchors-core/databases"
 	"github.com/modulrcloud/modulr-anchors-core/globals"
-	"github.com/modulrcloud/modulr-anchors-core/handlers"
 	"github.com/modulrcloud/modulr-anchors-core/structures"
 	"github.com/modulrcloud/modulr-anchors-core/utils"
 
-	ldbErrors "github.com/syndtr/goleveldb/leveldb/errors"
 	"github.com/valyala/fasthttp"
 )
-
-type anchorRotationProofRequest struct {
-	EpochIndex int                   `json:"epochIndex"`
-	Creator    string                `json:"creator"`
-	Proposal   structures.VotingStat `json:"proposal"`
-}
-
-type anchorRotationProofResponse struct {
-	Status     string                 `json:"status"`
-	Message    string                 `json:"message,omitempty"`
-	Signature  string                 `json:"signature,omitempty"`
-	VotingStat *structures.VotingStat `json:"votingStat,omitempty"`
-}
 
 func AnchorRotationProof(ctx *fasthttp.RequestCtx) {
 	ctx.Response.Header.Set("Access-Control-Allow-Origin", "*")
@@ -41,7 +25,7 @@ func AnchorRotationProof(ctx *fasthttp.RequestCtx) {
 		return
 	}
 
-	var req anchorRotationProofRequest
+	var req structures.AnchorRotationProofRequest
 	if err := json.Unmarshal(ctx.PostBody(), &req); err != nil {
 		ctx.SetStatusCode(fasthttp.StatusBadRequest)
 		ctx.Write([]byte(`{"err":"invalid payload"}`))
@@ -54,14 +38,14 @@ func AnchorRotationProof(ctx *fasthttp.RequestCtx) {
 		return
 	}
 
-	epochHandler := getEpochHandler(req.EpochIndex)
+	epochHandler := getEpochHandlerByID(req.EpochIndex)
 	if epochHandler == nil {
 		ctx.SetStatusCode(fasthttp.StatusNotFound)
 		ctx.Write([]byte(`{"err":"epoch not found"}`))
 		return
 	}
 
-	if !isCreatorInEpoch(req.Creator, epochHandler.AnchorsRegistry) {
+	if !creatorInEpoch(req.Creator, epochHandler.AnchorsRegistry) {
 		ctx.SetStatusCode(fasthttp.StatusNotFound)
 		ctx.Write([]byte(`{"err":"creator not found"}`))
 		return
@@ -77,7 +61,7 @@ func AnchorRotationProof(ctx *fasthttp.RequestCtx) {
 		return
 	}
 
-	currentStat, err := readVotingStat(req.EpochIndex, req.Creator)
+	currentStat, err := utils.ReadVotingStat(req.EpochIndex, req.Creator)
 	if err != nil {
 		ctx.SetStatusCode(fasthttp.StatusInternalServerError)
 		ctx.Write([]byte(`{"err":"failed to read voting stats"}`))
@@ -98,30 +82,9 @@ func AnchorRotationProof(ctx *fasthttp.RequestCtx) {
 	}
 }
 
-func getEpochHandler(id int) *structures.EpochDataHandler {
-	handlers.APPROVEMENT_THREAD_METADATA.RWMutex.RLock()
-	defer handlers.APPROVEMENT_THREAD_METADATA.RWMutex.RUnlock()
-	epochHandlers := handlers.APPROVEMENT_THREAD_METADATA.Handler.GetEpochHandlers()
-	for idx := range epochHandlers {
-		if epochHandlers[idx].Id == id {
-			return &epochHandlers[idx]
-		}
-	}
-	return nil
-}
-
-func isCreatorInEpoch(creator string, registry []string) bool {
-	for _, candidate := range registry {
-		if candidate == creator {
-			return true
-		}
-	}
-	return false
-}
-
 func respondWithUpgrade(ctx *fasthttp.RequestCtx, stat structures.VotingStat) {
 	ctx.SetStatusCode(fasthttp.StatusConflict)
-	payload, _ := json.Marshal(anchorRotationProofResponse{
+	payload, _ := json.Marshal(structures.AnchorRotationProofResponse{
 		Status:     "UPGRADE",
 		Message:    "network progressed further",
 		VotingStat: &stat,
@@ -136,7 +99,7 @@ func handleMatchingProposal(ctx *fasthttp.RequestCtx, current, proposal structur
 		return
 	}
 
-	if !strings.EqualFold(current.Hash, proposal.Hash) {
+	if strings.ToLower(current.Hash) != strings.ToLower(proposal.Hash) {
 		ctx.SetStatusCode(fasthttp.StatusConflict)
 		ctx.Write([]byte(`{"err":"hash mismatch"}`))
 		return
@@ -148,12 +111,12 @@ func handleMatchingProposal(ctx *fasthttp.RequestCtx, current, proposal structur
 func handleUpgradeProposal(ctx *fasthttp.RequestCtx, current, proposal structures.VotingStat, epochIndex int, creator string, epochHandler *structures.EpochDataHandler) {
 	if err := validateUpgradeProposal(current, proposal, epochIndex, creator, epochHandler); err != nil {
 		ctx.SetStatusCode(fasthttp.StatusBadRequest)
-		payload, _ := json.Marshal(anchorRotationProofResponse{Status: "ERROR", Message: err.Error()})
+		payload, _ := json.Marshal(structures.AnchorRotationProofResponse{Status: "ERROR", Message: err.Error()})
 		ctx.Write(payload)
 		return
 	}
 
-	if err := storeVotingStat(epochIndex, creator, proposal); err != nil {
+	if err := utils.StoreVotingStat(epochIndex, creator, proposal); err != nil {
 		ctx.SetStatusCode(fasthttp.StatusInternalServerError)
 		ctx.Write([]byte(`{"err":"failed to persist voting stat"}`))
 		return
@@ -166,7 +129,7 @@ func respondWithSignature(ctx *fasthttp.RequestCtx, stat structures.VotingStat, 
 	epochFullID := epochHandler.Hash + "#" + strconv.Itoa(epochHandler.Id)
 	dataToSign := strings.Join([]string{stat.Afp.PrevBlockHash, stat.Afp.BlockId, stat.Afp.BlockHash, epochFullID}, ":")
 	signature := cryptography.GenerateSignature(globals.CONFIGURATION.PrivateKey, dataToSign)
-	payload, _ := json.Marshal(anchorRotationProofResponse{
+	payload, _ := json.Marshal(structures.AnchorRotationProofResponse{
 		Status:     "OK",
 		Signature:  signature,
 		VotingStat: &stat,
@@ -214,33 +177,4 @@ func validateUpgradeProposal(current, proposal structures.VotingStat, epochIndex
 	return nil
 }
 
-func readVotingStat(epochIndex int, creator string) (structures.VotingStat, error) {
-	key := buildVotingStatKey(epochIndex, creator)
-	stat := structures.NewVotingStatTemplate()
-	raw, err := databases.FINALIZATION_VOTING_STATS.Get(key, nil)
-	if err != nil {
-		if errors.Is(err, ldbErrors.ErrNotFound) {
-			return stat, nil
-		}
-		return stat, err
-	}
-	if len(raw) == 0 {
-		return stat, nil
-	}
-	if err := json.Unmarshal(raw, &stat); err != nil {
-		return stat, err
-	}
-	return stat, nil
-}
-
-func storeVotingStat(epochIndex int, creator string, stat structures.VotingStat) error {
-	payload, err := json.Marshal(stat)
-	if err != nil {
-		return err
-	}
-	return databases.FINALIZATION_VOTING_STATS.Put(buildVotingStatKey(epochIndex, creator), payload, nil)
-}
-
-func buildVotingStatKey(epochIndex int, creator string) []byte {
-	return []byte(strconv.Itoa(epochIndex) + ":" + creator)
-}
+// helper moved to helpers.go

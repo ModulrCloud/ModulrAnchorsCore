@@ -1,19 +1,15 @@
 package threads
 
 import (
-	"encoding/json"
-	"errors"
 	"fmt"
 	"strconv"
 	"sync"
 	"time"
 
-	"github.com/modulrcloud/modulr-anchors-core/databases"
 	"github.com/modulrcloud/modulr-anchors-core/globals"
 	"github.com/modulrcloud/modulr-anchors-core/handlers"
 	"github.com/modulrcloud/modulr-anchors-core/structures"
 	"github.com/modulrcloud/modulr-anchors-core/utils"
-	ldbErrors "github.com/syndtr/goleveldb/leveldb/errors"
 )
 
 const defaultHealthCheckIntervalMs = 5000
@@ -44,36 +40,36 @@ func HealthCheckerThread() {
 }
 
 func checkCreatorsHealth() {
-    handlers.APPROVEMENT_THREAD_METADATA.RWMutex.RLock()
-    epochHandlers := handlers.APPROVEMENT_THREAD_METADATA.Handler.GetEpochHandlers()
-    handlers.APPROVEMENT_THREAD_METADATA.RWMutex.RUnlock()
+	handlers.APPROVEMENT_THREAD_METADATA.RWMutex.RLock()
+	epochHandlers := handlers.APPROVEMENT_THREAD_METADATA.Handler.GetEpochHandlers()
+	handlers.APPROVEMENT_THREAD_METADATA.RWMutex.RUnlock()
 
-    if len(epochHandlers) == 0 {
-            return
-    }
+	if len(epochHandlers) == 0 {
+		return
+	}
 
-    for _, epochHandler := range epochHandlers {
-            if len(epochHandler.AnchorsRegistry) == 0 {
-                    continue
-            }
+	for _, epochHandler := range epochHandlers {
+		if len(epochHandler.AnchorsRegistry) == 0 {
+			continue
+		}
 
-            for _, creator := range epochHandler.AnchorsRegistry {
-                    if utils.IsFinalizationProofsDisabled(epochHandler.Id, creator) {
-                            continue
-                    }
+		for _, creator := range epochHandler.AnchorsRegistry {
+			if utils.IsFinalizationProofsDisabled(epochHandler.Id, creator) {
+				continue
+			}
 
-                    votingStat, err := fetchCreatorVotingStat(epochHandler.Id, creator)
-                    if err != nil {
-                            utils.LogWithTime(
-                                    fmt.Sprintf("health checker: failed to read voting stats for %s in epoch %d: %v", creator, epochHandler.Id, err),
-                                    utils.YELLOW_COLOR,
-                            )
-                            continue
-                    }
+			votingStat, err := utils.ReadVotingStat(epochHandler.Id, creator)
+			if err != nil {
+				utils.LogWithTime(
+					fmt.Sprintf("health checker: failed to read voting stats for %s in epoch %d: %v", creator, epochHandler.Id, err),
+					utils.YELLOW_COLOR,
+				)
+				continue
+			}
 
-                    evaluateCreatorProgress(epochHandler.Id, creator, votingStat)
-            }
-    }
+			evaluateCreatorProgress(epochHandler.Id, creator, votingStat)
+		}
+	}
 }
 
 func evaluateCreatorProgress(epochID int, creator string, current structures.VotingStat) {
@@ -124,26 +120,4 @@ func storeSnapshot(epochID int, creator string, stat structures.VotingStat) {
 
 func snapshotKey(epochID int, creator string) string {
 	return strconv.Itoa(epochID) + ":" + creator
-}
-
-func fetchCreatorVotingStat(epochID int, creator string) (structures.VotingStat, error) {
-	stat := structures.NewVotingStatTemplate()
-	key := []byte(snapshotKey(epochID, creator))
-	raw, err := databases.FINALIZATION_VOTING_STATS.Get(key, nil)
-	if err != nil {
-		if errors.Is(err, ldbErrors.ErrNotFound) {
-			return stat, nil
-		}
-		return stat, err
-	}
-
-	if len(raw) == 0 {
-		return stat, nil
-	}
-
-	if err := json.Unmarshal(raw, &stat); err != nil {
-		return stat, err
-	}
-
-	return stat, nil
 }

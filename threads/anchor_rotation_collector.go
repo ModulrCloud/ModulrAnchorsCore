@@ -116,7 +116,7 @@ func processCreatorRotation(epochHandler *structures.EpochDataHandler, creator s
 		utils.LogWithTime(fmt.Sprintf("anchor rotation: failed to persist proof for %s epoch %d: %v", creator, epochHandler.Id, err), utils.YELLOW_COLOR)
 		return true, false
 	}
-	handlers.AddRotationProofToMempool(proof)
+	globals.AddAnchorRotationProofToMempool(proof)
 	broadcastRotationProof(epochHandler, proof)
 	utils.LogWithTime(fmt.Sprintf("anchor rotation: collected %d signatures for %s in epoch %d", len(signatures), creator, epochHandler.Id), utils.GREEN_COLOR)
 	return true, true

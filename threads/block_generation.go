@@ -91,8 +91,8 @@ func generateBlock(epochHandlerRef *structures.EpochDataHandler) {
 	}
 	extraData := structures.BlockExtraData{
 		Fields:                   fields,
-		RotationProofs:           handlers.DrainRotationProofsFromMempool(),
-		LeaderFinalizationProofs: handlers.DrainLeaderFinalizationProofsFromMempool(),
+		RotationProofs:           globals.DrainRotationProofsFromMempool(),
+		LeaderFinalizationProofs: globals.DrainLeaderFinalizationProofsFromMempool(),
 	}
 
 	blockDbAtomicBatch := new(leveldb.Batch)

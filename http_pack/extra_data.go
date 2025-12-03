@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/modulrcloud/modulr-anchors-core/cryptography"
-	"github.com/modulrcloud/modulr-anchors-core/handlers"
+	"github.com/modulrcloud/modulr-anchors-core/globals"
 	"github.com/modulrcloud/modulr-anchors-core/structures"
 	"github.com/modulrcloud/modulr-anchors-core/utils"
 
@@ -81,7 +81,7 @@ func storeRotationProofFromRequest(proof structures.AnchorRotationProofBundle) e
 
 	if existing, err := utils.LoadRotationProof(proof.EpochIndex, proof.Creator); err == nil {
 		if existing.VotingStat.Index >= proof.VotingStat.Index && existing.VotingStat.Hash == proof.VotingStat.Hash {
-			handlers.AddRotationProofToMempool(existing)
+			globals.AddAnchorRotationProofToMempool(existing)
 			return nil
 		}
 	}
@@ -90,7 +90,7 @@ func storeRotationProofFromRequest(proof structures.AnchorRotationProofBundle) e
 		return fmt.Errorf("store rotation proof: %w", err)
 	}
 
-	handlers.AddRotationProofToMempool(proof)
+	globals.AddAnchorRotationProofToMempool(proof)
 	return nil
 }
 

@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/modulrcloud/modulr-anchors-core/handlers"
+	"github.com/modulrcloud/modulr-anchors-core/globals"
 	"github.com/modulrcloud/modulr-anchors-core/structures"
 	"github.com/modulrcloud/modulr-anchors-core/utils"
 
@@ -68,7 +68,7 @@ func storeLeaderFinalizationFromRequest(proof structures.LeaderFinalizationProof
 
 	if existing, err := utils.LoadLeaderFinalizationProof(proof.ChainId, proof.Leader); err == nil {
 		if existing.VotingStat.Index >= proof.VotingStat.Index && existing.VotingStat.Hash == proof.VotingStat.Hash {
-			handlers.AddLeaderFinalizationProofToMempool(existing)
+			globals.AddLeaderFinalizationProofToMempool(existing)
 			return nil
 		}
 	}
@@ -77,6 +77,6 @@ func storeLeaderFinalizationFromRequest(proof structures.LeaderFinalizationProof
 		return fmt.Errorf("store leader finalization proof: %w", err)
 	}
 
-	handlers.AddLeaderFinalizationProofToMempool(proof)
+	globals.AddLeaderFinalizationProofToMempool(proof)
 	return nil
 }

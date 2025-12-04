@@ -73,8 +73,8 @@ func formatExtraData(extraData structures.BlockExtraData) string {
 		proofs := make([]structures.LeaderFinalizationProof, len(extraData.LeaderFinalizationProofs))
 		copy(proofs, extraData.LeaderFinalizationProofs)
 		sort.Slice(proofs, func(i, j int) bool {
-			if proofs[i].ChainId != proofs[j].ChainId {
-				return proofs[i].ChainId < proofs[j].ChainId
+			if proofs[i].EpochIndex != proofs[j].EpochIndex {
+				return proofs[i].EpochIndex < proofs[j].EpochIndex
 			}
 			if proofs[i].Leader != proofs[j].Leader {
 				return proofs[i].Leader < proofs[j].Leader
@@ -92,8 +92,8 @@ func formatExtraData(extraData structures.BlockExtraData) string {
 				sigParts = append(sigParts, signer+"="+proof.Signatures[signer])
 			}
 			parts = append(parts, fmt.Sprintf(
-				"leader_finalization:%s:%s:%d:%s:%s",
-				proof.ChainId,
+				"leader_finalization:%d:%s:%d:%s:%s",
+				proof.EpochIndex,
 				proof.Leader,
 				proof.VotingStat.Index,
 				proof.VotingStat.Hash,

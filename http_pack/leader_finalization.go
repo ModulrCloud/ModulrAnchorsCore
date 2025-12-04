@@ -50,9 +50,6 @@ func AcceptLeaderFinalizationProof(ctx *fasthttp.RequestCtx) {
 }
 
 func storeLeaderFinalizationFromRequest(proof structures.LeaderFinalizationProof) error {
-	if proof.ChainId == "" || proof.Leader == "" {
-		return fmt.Errorf("missing chain or leader identifiers")
-	}
 
 	if proof.VotingStat.Index < 0 || proof.VotingStat.Hash == "" {
 		return fmt.Errorf("invalid voting stat")
@@ -62,11 +59,7 @@ func storeLeaderFinalizationFromRequest(proof structures.LeaderFinalizationProof
 		return fmt.Errorf("missing signatures")
 	}
 
-	if err := utils.StoreLeaderVotingStat(proof.ChainId, proof.Leader, proof.VotingStat); err != nil {
-		return fmt.Errorf("store voting stat: %w", err)
-	}
-
-	if existing, err := utils.LoadLeaderFinalizationProof(proof.ChainId, proof.Leader); err == nil {
+	if existing, err := utils.LoadLeaderFinalizationProof(proof.EpochIndex, proof.Leader); err == nil {
 		if existing.VotingStat.Index >= proof.VotingStat.Index && existing.VotingStat.Hash == proof.VotingStat.Hash {
 			globals.AddLeaderFinalizationProofToMempool(existing)
 			return nil

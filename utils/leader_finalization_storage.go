@@ -3,6 +3,7 @@ package utils
 import (
 	"encoding/json"
 	"errors"
+	"strconv"
 
 	"github.com/modulrcloud/modulr-anchors-core/databases"
 	"github.com/modulrcloud/modulr-anchors-core/structures"
@@ -10,12 +11,8 @@ import (
 	ldbErrors "github.com/syndtr/goleveldb/leveldb/errors"
 )
 
-func leaderFinalizationKey(chainId, leader string) []byte {
-	return []byte("LEADER_FINALIZATION_PROOF:" + chainId + ":" + leader)
-}
-
-func leaderVotingStatKey(chainId, leader string) []byte {
-	return []byte("LEADER_VOTING_STAT:" + chainId + ":" + leader)
+func leaderFinalizationKey(epochIndex int, leader string) []byte {
+	return []byte("LEADER_FINALIZATION_PROOF:" + strconv.Itoa(epochIndex) + ":" + leader)
 }
 
 func StoreLeaderFinalizationProof(proof structures.LeaderFinalizationProof) error {
@@ -23,12 +20,12 @@ func StoreLeaderFinalizationProof(proof structures.LeaderFinalizationProof) erro
 	if err != nil {
 		return err
 	}
-	return databases.FINALIZATION_VOTING_STATS.Put(leaderFinalizationKey(proof.ChainId, proof.Leader), payload, nil)
+	return databases.FINALIZATION_VOTING_STATS.Put(leaderFinalizationKey(proof.EpochIndex, proof.Leader), payload, nil)
 }
 
-func LoadLeaderFinalizationProof(chainId, leader string) (structures.LeaderFinalizationProof, error) {
+func LoadLeaderFinalizationProof(epochIndex int, leader string) (structures.LeaderFinalizationProof, error) {
 	var proof structures.LeaderFinalizationProof
-	raw, err := databases.FINALIZATION_VOTING_STATS.Get(leaderFinalizationKey(chainId, leader), nil)
+	raw, err := databases.FINALIZATION_VOTING_STATS.Get(leaderFinalizationKey(epochIndex, leader), nil)
 	if err != nil {
 		if errors.Is(err, ldbErrors.ErrNotFound) {
 			return proof, nil
@@ -42,30 +39,4 @@ func LoadLeaderFinalizationProof(chainId, leader string) (structures.LeaderFinal
 		return proof, err
 	}
 	return proof, nil
-}
-
-func StoreLeaderVotingStat(chainId, leader string, stat structures.VotingStat) error {
-	payload, err := json.Marshal(stat)
-	if err != nil {
-		return err
-	}
-	return databases.FINALIZATION_VOTING_STATS.Put(leaderVotingStatKey(chainId, leader), payload, nil)
-}
-
-func LoadLeaderVotingStat(chainId, leader string) (structures.VotingStat, error) {
-	stat := structures.NewVotingStatTemplate()
-	raw, err := databases.FINALIZATION_VOTING_STATS.Get(leaderVotingStatKey(chainId, leader), nil)
-	if err != nil {
-		if errors.Is(err, ldbErrors.ErrNotFound) {
-			return stat, nil
-		}
-		return stat, err
-	}
-	if len(raw) == 0 {
-		return stat, nil
-	}
-	if err := json.Unmarshal(raw, &stat); err != nil {
-		return stat, err
-	}
-	return stat, nil
 }

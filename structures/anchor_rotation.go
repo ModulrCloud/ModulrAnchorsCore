@@ -13,7 +13,7 @@ type AnchorRotationProof struct {
 }
 
 type LeaderFinalizationProof struct {
-	ChainId    string            `json:"chainId"`
+	EpochIndex int               `json:"epochIndex"`
 	Leader     string            `json:"leader"`
 	VotingStat VotingStat        `json:"votingStat"`
 	Signatures map[string]string `json:"signatures"`

@@ -11,10 +11,8 @@ import (
 	ldbErrors "github.com/syndtr/goleveldb/leveldb/errors"
 )
 
-const rotationProofPrefix = "ANCHOR_ROTATION_PROOF:"
-
 func rotationProofKey(epoch int, creator string) []byte {
-	return []byte(rotationProofPrefix + strconv.Itoa(epoch) + ":" + creator)
+	return []byte("ANCHOR_ROTATION_PROOF:" + strconv.Itoa(epoch) + ":" + creator)
 }
 
 func StoreRotationProof(proof structures.AnchorRotationProof) error {

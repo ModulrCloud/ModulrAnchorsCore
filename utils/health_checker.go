@@ -7,8 +7,6 @@ import (
 	"github.com/modulrcloud/modulr-anchors-core/databases"
 )
 
-const blockCreatorHealthPrefix = "BLOCK_CREATOR_HEALTH:"
-
 // BlockCreatorHealthStatus stores metadata about why we stopped generating proofs for a creator.
 type BlockCreatorHealthStatus struct {
 	Epoch   int    `json:"epoch"`
@@ -16,7 +14,7 @@ type BlockCreatorHealthStatus struct {
 }
 
 func buildBlockCreatorHealthKey(epochID int, creator string) []byte {
-	return []byte(blockCreatorHealthPrefix + strconv.Itoa(epochID) + ":" + creator)
+	return []byte("BLOCK_CREATOR_HEALTH:" + strconv.Itoa(epochID) + ":" + creator)
 }
 
 // DisableFinalizationProofsForCreator stores a persistent flag to stop generating proofs for the creator.

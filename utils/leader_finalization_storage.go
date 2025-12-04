@@ -10,15 +10,12 @@ import (
 	ldbErrors "github.com/syndtr/goleveldb/leveldb/errors"
 )
 
-const leaderFinalizationPrefix = "LEADER_FINALIZATION_PROOF:"
-const leaderVotingStatPrefix = "LEADER_VOTING_STAT:"
-
 func leaderFinalizationKey(chainId, leader string) []byte {
-	return []byte(leaderFinalizationPrefix + chainId + ":" + leader)
+	return []byte("LEADER_FINALIZATION_PROOF:" + chainId + ":" + leader)
 }
 
 func leaderVotingStatKey(chainId, leader string) []byte {
-	return []byte(leaderVotingStatPrefix + chainId + ":" + leader)
+	return []byte("LEADER_VOTING_STAT:" + chainId + ":" + leader)
 }
 
 func StoreLeaderFinalizationProof(proof structures.LeaderFinalizationProof) error {

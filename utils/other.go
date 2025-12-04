@@ -67,8 +67,8 @@ func LogWithTime(msg, msgColor string) {
 
 }
 
-func PrintKernelBanner() {
-	lines := kernelBannerLines()
+func PrintBanner() {
+	lines := bannerLines()
 	if len(lines) == 0 {
 		return
 	}
@@ -92,7 +92,7 @@ func PrintShellDivider() {
 	LogWithTime(strings.Repeat("-", 60), "")
 }
 
-func kernelBannerLines() []string {
+func bannerLines() []string {
 	cfg := globals.CONFIGURATION
 	params := globals.GENESIS.NetworkParameters
 	lines := []string{"Modulr anchors core v0.1.0"}

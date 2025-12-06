@@ -4,6 +4,10 @@ import (
 	"github.com/modulrcloud/modulr-anchors-core/structures"
 )
 
+type QuorumMemberData struct {
+	PubKey, Url string
+}
+
 func GetQuorumMajority(epochHandler *structures.EpochDataHandler) int {
 
 	quorumSize := len(epochHandler.Quorum)
@@ -19,15 +23,15 @@ func GetQuorumMajority(epochHandler *structures.EpochDataHandler) int {
 	return majority
 }
 
-func GetQuorumUrlsAndPubkeys(epochHandler *structures.EpochDataHandler) []structures.QuorumMemberData {
+func GetQuorumUrlsAndPubkeys(epochHandler *structures.EpochDataHandler) []QuorumMemberData {
 
-	var toReturn []structures.QuorumMemberData
+	var toReturn []QuorumMemberData
 
 	for _, pubKey := range epochHandler.Quorum {
 
 		anchorStorage := GetAnchorFromApprovementThreadState(pubKey)
 
-		toReturn = append(toReturn, structures.QuorumMemberData{PubKey: pubKey, Url: anchorStorage.AnchorUrl})
+		toReturn = append(toReturn, QuorumMemberData{PubKey: pubKey, Url: anchorStorage.AnchorUrl})
 
 	}
 

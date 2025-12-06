@@ -12,6 +12,7 @@ import (
 
 	"github.com/modulrcloud/modulr-anchors-core/databases"
 	"github.com/modulrcloud/modulr-anchors-core/globals"
+	"github.com/modulrcloud/modulr-anchors-core/handlers"
 	"github.com/modulrcloud/modulr-anchors-core/structures"
 
 	"lukechampine.com/blake3"
@@ -181,4 +182,19 @@ func SignalAboutEpochRotationExists(epochIndex int) bool {
 
 	return false
 
+}
+
+func GetEpochHandlerByID(id int) *structures.EpochDataHandler {
+
+	handlers.APPROVEMENT_THREAD_METADATA.RWMutex.RLock()
+
+	defer handlers.APPROVEMENT_THREAD_METADATA.RWMutex.RUnlock()
+
+	epochHandlers := handlers.APPROVEMENT_THREAD_METADATA.Handler.GetEpochHandlers()
+	for idx := range epochHandlers {
+		if epochHandlers[idx].Id == id {
+			return &epochHandlers[idx]
+		}
+	}
+	return nil
 }

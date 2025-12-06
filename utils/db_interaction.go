@@ -22,7 +22,7 @@ func OpenDb(dbName string) *leveldb.DB {
 
 }
 
-func GetAnchorFromApprovementThreadState(anchorPubkey string) *structures.AnchorsStorage {
+func GetAnchorFromApprovementThreadState(anchorPubkey string) *structures.AnchorStorage {
 
 	anchorStorageKey := anchorPubkey + "_ANCHOR_STORAGE"
 
@@ -32,7 +32,7 @@ func GetAnchorFromApprovementThreadState(anchorPubkey string) *structures.Anchor
 		return nil
 	}
 
-	var anchorStorage structures.AnchorsStorage
+	var anchorStorage structures.AnchorStorage
 
 	err = json.Unmarshal(data, &anchorStorage)
 

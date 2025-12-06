@@ -60,7 +60,7 @@ func OpenWebsocketConnectionsWithQuorum(quorum []string, wsConnMap map[string]*w
 		}
 
 		// Parse metadata
-		var anchorStorage structures.AnchorsStorage
+		var anchorStorage structures.AnchorStorage
 		if err := json.Unmarshal(raw, &anchorStorage); err != nil {
 			continue
 		}
@@ -194,7 +194,7 @@ func reconnectOnce(pubkey string, wsConnMap map[string]*websocket.Conn) {
 	if err != nil {
 		return
 	}
-	var anchorStorage structures.AnchorsStorage
+	var anchorStorage structures.AnchorStorage
 	if err := json.Unmarshal(raw, &anchorStorage); err != nil || anchorStorage.WssAnchorUrl == "" {
 		return
 	}

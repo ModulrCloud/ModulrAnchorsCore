@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -15,7 +16,7 @@ import (
 	"github.com/valyala/fasthttp"
 )
 
-func AnchorRotationProof(ctx *fasthttp.RequestCtx) {
+func RequestAnchorRotationProof(ctx *fasthttp.RequestCtx) {
 	ctx.Response.Header.Set("Access-Control-Allow-Origin", "*")
 	ctx.SetContentType("application/json")
 
@@ -38,14 +39,14 @@ func AnchorRotationProof(ctx *fasthttp.RequestCtx) {
 		return
 	}
 
-	epochHandler := getEpochHandlerByID(req.EpochIndex)
+	epochHandler := utils.GetEpochHandlerByID(req.EpochIndex)
 	if epochHandler == nil {
 		ctx.SetStatusCode(fasthttp.StatusNotFound)
 		ctx.Write([]byte(`{"err":"epoch not found"}`))
 		return
 	}
 
-	if !creatorInEpoch(req.Creator, epochHandler.AnchorsRegistry) {
+	if !slices.Contains(epochHandler.AnchorsRegistry, req.Creator) {
 		ctx.SetStatusCode(fasthttp.StatusNotFound)
 		ctx.Write([]byte(`{"err":"creator not found"}`))
 		return
@@ -176,5 +177,3 @@ func validateUpgradeProposal(current, proposal structures.VotingStat, epochIndex
 
 	return nil
 }
-
-// helper moved to helpers.go

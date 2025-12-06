@@ -15,7 +15,7 @@ import (
 	"github.com/valyala/fasthttp"
 )
 
-func AcceptAnchorRotationProofs(ctx *fasthttp.RequestCtx) {
+func AcceptAggregatedAnchorRotationProofs(ctx *fasthttp.RequestCtx) {
 
 	ctx.Response.Header.Set("Access-Control-Allow-Origin", "*")
 	ctx.SetContentType("application/json")
@@ -26,7 +26,7 @@ func AcceptAnchorRotationProofs(ctx *fasthttp.RequestCtx) {
 		return
 	}
 
-	var req structures.AcceptAnchorRotationProofRequest
+	var req structures.AcceptAggregatedAnchorRotationProofRequest
 
 	if err := json.Unmarshal(ctx.PostBody(), &req); err != nil {
 		ctx.SetStatusCode(fasthttp.StatusBadRequest)
@@ -34,7 +34,7 @@ func AcceptAnchorRotationProofs(ctx *fasthttp.RequestCtx) {
 		return
 	}
 
-	if len(req.RotationProofs) == 0 {
+	if len(req.AggregatedRotationProofs) == 0 {
 		ctx.SetStatusCode(fasthttp.StatusBadRequest)
 		ctx.Write([]byte(`{"err":"missing rotation proofs"}`))
 		return
@@ -42,8 +42,8 @@ func AcceptAnchorRotationProofs(ctx *fasthttp.RequestCtx) {
 
 	accepted := 0
 
-	for _, proof := range req.RotationProofs {
-		if err := storeRotationProofFromRequest(proof); err != nil {
+	for _, proof := range req.AggregatedRotationProofs {
+		if err := storeAggregatedRotationProofFromRequest(proof); err != nil {
 			ctx.SetStatusCode(fasthttp.StatusBadRequest)
 			ctx.Write([]byte(fmt.Sprintf(`{"err":"%s"}`, err.Error())))
 			return
@@ -59,15 +59,15 @@ func AcceptAnchorRotationProofs(ctx *fasthttp.RequestCtx) {
 
 }
 
-func storeRotationProofFromRequest(proof structures.AnchorRotationProof) error {
+func storeAggregatedRotationProofFromRequest(proof structures.AggregatedAnchorRotaionProof) error {
 
-	epochHandler := getEpochHandlerByID(proof.EpochIndex)
+	epochHandler := utils.GetEpochHandlerByID(proof.EpochIndex)
 
 	if epochHandler == nil {
 		return fmt.Errorf("epoch %d is not tracked", proof.EpochIndex)
 	}
 
-	if !creatorInEpoch(proof.Anchor, epochHandler.AnchorsRegistry) {
+	if !slices.Contains(epochHandler.AnchorsRegistry, proof.Anchor) {
 		return fmt.Errorf("creator %s is not part of epoch %d", proof.Anchor, proof.EpochIndex)
 	}
 
@@ -83,7 +83,7 @@ func storeRotationProofFromRequest(proof structures.AnchorRotationProof) error {
 
 	defer creatorMutex.Unlock()
 
-	if err := validateAnchorRotationProof(&proof, epochHandler); err != nil {
+	if err := verifyAggregatedAnchorRotationProof(&proof, epochHandler); err != nil {
 		return err
 	}
 
@@ -108,7 +108,7 @@ func storeRotationProofFromRequest(proof structures.AnchorRotationProof) error {
 
 }
 
-func validateAnchorRotationProof(proof *structures.AnchorRotationProof, epochHandler *structures.EpochDataHandler) error {
+func verifyAggregatedAnchorRotationProof(proof *structures.AggregatedAnchorRotaionProof, epochHandler *structures.EpochDataHandler) error {
 	if proof.VotingStat.Index < 0 || proof.VotingStat.Hash == "" {
 		return fmt.Errorf("invalid voting stat")
 	}

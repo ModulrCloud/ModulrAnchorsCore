@@ -11,7 +11,8 @@ import (
 	"github.com/valyala/fasthttp"
 )
 
-func AcceptLeaderFinalizationProof(ctx *fasthttp.RequestCtx) {
+func AcceptAggregatedLeaderFinalizationProof(ctx *fasthttp.RequestCtx) {
+
 	ctx.Response.Header.Set("Access-Control-Allow-Origin", "*")
 	ctx.SetContentType("application/json")
 
@@ -21,7 +22,7 @@ func AcceptLeaderFinalizationProof(ctx *fasthttp.RequestCtx) {
 		return
 	}
 
-	var req structures.AcceptLeaderFinalizationDataRequest
+	var req structures.AcceptLeaderFinalizationProofRequest
 	if err := json.Unmarshal(ctx.PostBody(), &req); err != nil {
 		ctx.SetStatusCode(fasthttp.StatusBadRequest)
 		ctx.Write([]byte(`{"err":"invalid payload"}`))
@@ -36,7 +37,7 @@ func AcceptLeaderFinalizationProof(ctx *fasthttp.RequestCtx) {
 
 	accepted := 0
 	for _, proof := range req.LeaderFinalizations {
-		if err := storeLeaderFinalizationFromRequest(proof); err != nil {
+		if err := storeAggregatedLeaderFinalizationFromRequest(proof); err != nil {
 			ctx.SetStatusCode(fasthttp.StatusBadRequest)
 			ctx.Write([]byte(fmt.Sprintf(`{"err":"%s"}`, err.Error())))
 			return
@@ -49,7 +50,7 @@ func AcceptLeaderFinalizationProof(ctx *fasthttp.RequestCtx) {
 	ctx.Write(payload)
 }
 
-func storeLeaderFinalizationFromRequest(proof structures.LeaderFinalizationProof) error {
+func storeAggregatedLeaderFinalizationFromRequest(proof structures.AggregatedLeaderFinalizationProof) error {
 
 	if proof.VotingStat.Index < 0 || proof.VotingStat.Hash == "" {
 		return fmt.Errorf("invalid voting stat")

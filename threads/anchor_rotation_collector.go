@@ -106,7 +106,7 @@ func processCreatorRotation(epochHandler *structures.EpochDataHandler, creator s
 		return true, false
 	}
 
-	proof := structures.AnchorRotationProof{
+	proof := structures.AggregatedAnchorRotaionProof{
 		EpochIndex: epochHandler.Id,
 		Anchor:     creator,
 		VotingStat: stat,
@@ -133,7 +133,7 @@ func collectRotationSignatures(epochHandler *structures.EpochDataHandler, creato
 		if member.PubKey == globals.CONFIGURATION.PublicKey || member.Url == "" {
 			continue
 		}
-		endpoint := strings.TrimRight(member.Url, "/") + "/anchor_rotation_proof"
+		endpoint := strings.TrimRight(member.Url, "/") + "/request_anchor_rotation_proof"
 		body, status, err := postJSON(endpoint, requestBody)
 		if err != nil {
 			continue
@@ -189,14 +189,14 @@ func postJSON(url string, payload []byte) ([]byte, int, error) {
 	return body, resp.StatusCode, nil
 }
 
-func broadcastRotationProof(epochHandler *structures.EpochDataHandler, proof structures.AnchorRotationProof) {
-	payload := structures.AcceptAnchorRotationProofRequest{RotationProofs: []structures.AnchorRotationProof{proof}}
+func broadcastRotationProof(epochHandler *structures.EpochDataHandler, proof structures.AggregatedAnchorRotaionProof) {
+	payload := structures.AcceptAggregatedAnchorRotationProofRequest{AggregatedRotationProofs: []structures.AggregatedAnchorRotaionProof{proof}}
 	body, _ := json.Marshal(payload)
 	for _, member := range utils.GetQuorumUrlsAndPubkeys(epochHandler) {
 		if member.PubKey == globals.CONFIGURATION.PublicKey || member.Url == "" {
 			continue
 		}
-		endpoint := strings.TrimRight(member.Url, "/") + "/accept_anchor_rotation_proof"
+		endpoint := strings.TrimRight(member.Url, "/") + "/accept_aggregated_anchor_rotation_proof"
 		if _, _, err := postJSON(endpoint, body); err != nil {
 			utils.LogWithTime(fmt.Sprintf("anchor rotation: failed to broadcast proof to %s: %v", member.PubKey, err), utils.YELLOW_COLOR)
 		}

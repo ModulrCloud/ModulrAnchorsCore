@@ -4,7 +4,7 @@ type Genesis struct {
 	NetworkId                string            `json:"NETWORK_ID"`
 	FirstEpochStartTimestamp uint64            `json:"FIRST_EPOCH_START_TIMESTAMP"`
 	NetworkParameters        NetworkParameters `json:"NETWORK_PARAMETERS"`
-	Anchors                  []AnchorsStorage  `json:"ANCHORS"`
+	Anchors                  []AnchorStorage   `json:"ANCHORS"`
 }
 
 type NetworkParameters struct {
@@ -29,7 +29,7 @@ func (src *NetworkParameters) CopyNetworkParameters() NetworkParameters {
 	}
 }
 
-type AnchorsStorage struct {
+type AnchorStorage struct {
 	Pubkey       string `json:"pubkey"`
 	AnchorUrl    string `json:"anchorURL"`
 	WssAnchorUrl string `json:"wssAnchorURL"`

@@ -17,7 +17,7 @@ func leaderFinalizationKey(epochIndex int, leader string) []byte {
 
 }
 
-func StoreLeaderFinalizationProof(proof structures.LeaderFinalizationProof) error {
+func StoreLeaderFinalizationProof(proof structures.AggregatedLeaderFinalizationProof) error {
 
 	payload, err := json.Marshal(proof)
 
@@ -29,9 +29,9 @@ func StoreLeaderFinalizationProof(proof structures.LeaderFinalizationProof) erro
 
 }
 
-func LoadLeaderFinalizationProof(epochIndex int, leader string) (structures.LeaderFinalizationProof, error) {
+func LoadLeaderFinalizationProof(epochIndex int, leader string) (structures.AggregatedLeaderFinalizationProof, error) {
 
-	var proof structures.LeaderFinalizationProof
+	var proof structures.AggregatedLeaderFinalizationProof
 
 	raw, err := databases.FINALIZATION_VOTING_STATS.Get(leaderFinalizationKey(epochIndex, leader), nil)
 

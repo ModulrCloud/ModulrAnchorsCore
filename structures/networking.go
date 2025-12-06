@@ -17,14 +17,14 @@ type AnchorRotationProofResponse struct {
 	VotingStat *VotingStat `json:"votingStat,omitempty"`
 }
 
-type AcceptAnchorRotationProofRequest struct {
-	RotationProofs []AnchorRotationProof `json:"rotationProofs"`
+type AcceptAggregatedAnchorRotationProofRequest struct {
+	AggregatedRotationProofs []AggregatedAnchorRotaionProof `json:"aggregatedAnchorRotationProofs"`
 }
 
 type AcceptAnchorRotationProofResponse struct {
 	Accepted int `json:"accepted"`
 }
 
-type AcceptLeaderFinalizationDataRequest struct {
-	LeaderFinalizations []LeaderFinalizationProof `json:"leaderFinalizations"`
+type AcceptLeaderFinalizationProofRequest struct {
+	LeaderFinalizations []AggregatedLeaderFinalizationProof `json:"leaderFinalizations"`
 }

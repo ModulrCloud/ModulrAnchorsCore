@@ -18,10 +18,10 @@ func createRouter() fasthttp.RequestHandler {
 	r.GET("/block/{id}", GetBlockById)
 	r.GET("/aggregated_finalization_proof/{blockId}", GetAggregatedFinalizationProof)
 
-	r.POST("/anchor_rotation_proof", AnchorRotationProof)
+	r.POST("/request_anchor_rotation_proof", RequestAnchorRotationProof)
 
-	r.POST("/accept_anchor_rotation_proof", AcceptAnchorRotationProofs)
-	r.POST("/accept_leader_finalization_proof", AcceptLeaderFinalizationProof)
+	r.POST("/accept_aggregated_anchor_rotation_proof", AcceptAggregatedAnchorRotationProofs)
+	r.POST("/accept_leader_finalization_proof", AcceptAggregatedLeaderFinalizationProof)
 
 	return r.Handler
 }

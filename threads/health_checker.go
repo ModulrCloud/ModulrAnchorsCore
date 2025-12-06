@@ -13,8 +13,6 @@ import (
 	"github.com/modulrcloud/modulr-anchors-core/utils"
 )
 
-const defaultHealthCheckIntervalMs = 5000
-
 type creatorSnapshot struct {
 	Index int
 	Hash  string
@@ -29,7 +27,7 @@ var creatorSnapshots = struct {
 func HealthCheckerThread() {
 	intervalMs := globals.GENESIS.NetworkParameters.BlockCreatorsHealthCheckIntervalMs
 	if intervalMs <= 0 {
-		intervalMs = defaultHealthCheckIntervalMs
+		intervalMs = 5000
 	}
 
 	ticker := time.NewTicker(time.Duration(intervalMs) * time.Millisecond)

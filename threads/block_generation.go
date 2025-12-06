@@ -15,6 +15,27 @@ import (
 	"github.com/syndtr/goleveldb/leveldb"
 )
 
+func BlocksGenerationThread() {
+
+	for {
+
+		handlers.APPROVEMENT_THREAD_METADATA.RWMutex.RLock()
+
+		blockTime := handlers.APPROVEMENT_THREAD_METADATA.Handler.NetworkParameters.BlockTime
+
+		epochHandlers := handlers.APPROVEMENT_THREAD_METADATA.Handler.GetEpochHandlers()
+
+		handlers.APPROVEMENT_THREAD_METADATA.RWMutex.RUnlock()
+
+		for idx := range epochHandlers {
+			generateBlock(&epochHandlers[idx])
+		}
+
+		time.Sleep(time.Duration(blockTime) * time.Millisecond)
+	}
+
+}
+
 func getGenerationMetadata(epochFullID string) *structures.GenerationThreadMetadataHandler {
 
 	handlers.GENERATION_THREAD_METADATA.Lock()
@@ -42,27 +63,6 @@ func removeGenerationMetadata(epochFullID string) {
 	defer handlers.GENERATION_THREAD_METADATA.Unlock()
 
 	delete(handlers.GENERATION_THREAD_METADATA.Handlers, epochFullID)
-
-}
-
-func BlocksGenerationThread() {
-
-	for {
-
-		handlers.APPROVEMENT_THREAD_METADATA.RWMutex.RLock()
-
-		blockTime := handlers.APPROVEMENT_THREAD_METADATA.Handler.NetworkParameters.BlockTime
-
-		epochHandlers := handlers.APPROVEMENT_THREAD_METADATA.Handler.GetEpochHandlers()
-
-		handlers.APPROVEMENT_THREAD_METADATA.RWMutex.RUnlock()
-
-		for idx := range epochHandlers {
-			generateBlock(&epochHandlers[idx])
-		}
-
-		time.Sleep(time.Duration(blockTime) * time.Millisecond)
-	}
 
 }
 

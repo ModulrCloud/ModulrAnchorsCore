@@ -15,19 +15,24 @@ import (
 	"github.com/modulrcloud/modulr-anchors-core/utils"
 )
 
-const rotationCollectorInterval = 5 * time.Second
-
 var httpClient = &http.Client{Timeout: 5 * time.Second}
 
 func AnchorRotationCollectorThread() {
-	ticker := time.NewTicker(rotationCollectorInterval)
+
+	ticker := time.NewTicker(5 * time.Second)
+
 	defer ticker.Stop()
+
 	for range ticker.C {
+
 		collectRotationProofs()
+
 	}
+
 }
 
 func collectRotationProofs() {
+
 	handlers.APPROVEMENT_THREAD_METADATA.RWMutex.RLock()
 	epochHandlers := handlers.APPROVEMENT_THREAD_METADATA.Handler.GetEpochHandlers()
 	handlers.APPROVEMENT_THREAD_METADATA.RWMutex.RUnlock()

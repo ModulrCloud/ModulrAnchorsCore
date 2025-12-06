@@ -43,46 +43,8 @@ type finalizationRuntime struct {
 var finalizationRuntimes = struct {
 	sync.RWMutex
 	Data map[int]*finalizationRuntime
-}{Data: make(map[int]*finalizationRuntime)}
-
-func ensureFinalizationRuntime(epochHandler *structures.EpochDataHandler) *finalizationRuntime {
-	finalizationRuntimes.RLock()
-	if runtime, ok := finalizationRuntimes.Data[epochHandler.Id]; ok {
-		finalizationRuntimes.RUnlock()
-		return runtime
-	}
-	finalizationRuntimes.RUnlock()
-
-	finalizationRuntimes.Lock()
-	defer finalizationRuntimes.Unlock()
-	if runtime, ok := finalizationRuntimes.Data[epochHandler.Id]; ok {
-		return runtime
-	}
-	runtime := &finalizationRuntime{
-		ProofsCache:  make(map[string]string),
-		BlockToShare: &block_pack.Block{Index: -1},
-		Connections:  make(map[string]*websocket.Conn),
-	}
-	grabber := ProofsGrabber{EpochId: epochHandler.Id, AcceptedIndex: -1, AcceptedHash: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"}
-	if rawGrabber, err := databases.FINALIZATION_VOTING_STATS.Get([]byte(strconv.Itoa(epochHandler.Id)+":PROOFS_GRABBER"), nil); err == nil {
-		json.Unmarshal(rawGrabber, &grabber)
-	}
-	runtime.Grabber = grabber
-	utils.OpenWebsocketConnectionsWithQuorum(epochHandler.Quorum, runtime.Connections)
-	runtime.Waiter = utils.NewQuorumWaiter(len(epochHandler.Quorum))
-	finalizationRuntimes.Data[epochHandler.Id] = runtime
-	return runtime
-}
-
-func removeFinalizationRuntime(epochId int) {
-	finalizationRuntimes.Lock()
-	defer finalizationRuntimes.Unlock()
-	if runtime, ok := finalizationRuntimes.Data[epochId]; ok {
-		for _, conn := range runtime.Connections {
-			conn.Close()
-		}
-		delete(finalizationRuntimes.Data, epochId)
-	}
+}{
+	Data: make(map[int]*finalizationRuntime),
 }
 
 func ShareBlockAndGetProofsThread() {
@@ -272,5 +234,45 @@ func runFinalizationProofsGrabbing(epochHandler *structures.EpochDataHandler, ru
 
 		}
 
+	}
+}
+
+func ensureFinalizationRuntime(epochHandler *structures.EpochDataHandler) *finalizationRuntime {
+	finalizationRuntimes.RLock()
+	if runtime, ok := finalizationRuntimes.Data[epochHandler.Id]; ok {
+		finalizationRuntimes.RUnlock()
+		return runtime
+	}
+	finalizationRuntimes.RUnlock()
+
+	finalizationRuntimes.Lock()
+	defer finalizationRuntimes.Unlock()
+	if runtime, ok := finalizationRuntimes.Data[epochHandler.Id]; ok {
+		return runtime
+	}
+	runtime := &finalizationRuntime{
+		ProofsCache:  make(map[string]string),
+		BlockToShare: &block_pack.Block{Index: -1},
+		Connections:  make(map[string]*websocket.Conn),
+	}
+	grabber := ProofsGrabber{EpochId: epochHandler.Id, AcceptedIndex: -1, AcceptedHash: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"}
+	if rawGrabber, err := databases.FINALIZATION_VOTING_STATS.Get([]byte(strconv.Itoa(epochHandler.Id)+":PROOFS_GRABBER"), nil); err == nil {
+		json.Unmarshal(rawGrabber, &grabber)
+	}
+	runtime.Grabber = grabber
+	utils.OpenWebsocketConnectionsWithQuorum(epochHandler.Quorum, runtime.Connections)
+	runtime.Waiter = utils.NewQuorumWaiter(len(epochHandler.Quorum))
+	finalizationRuntimes.Data[epochHandler.Id] = runtime
+	return runtime
+}
+
+func removeFinalizationRuntime(epochId int) {
+	finalizationRuntimes.Lock()
+	defer finalizationRuntimes.Unlock()
+	if runtime, ok := finalizationRuntimes.Data[epochId]; ok {
+		for _, conn := range runtime.Connections {
+			conn.Close()
+		}
+		delete(finalizationRuntimes.Data, epochId)
 	}
 }

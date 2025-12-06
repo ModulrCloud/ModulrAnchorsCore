@@ -15,13 +15,17 @@ func createRouter() fasthttp.RequestHandler {
 
 	r := router.New()
 
+	// Default API routes
 	r.GET("/block/{id}", GetBlockById)
 	r.GET("/aggregated_finalization_proof/{blockId}", GetAggregatedFinalizationProof)
 
+	// Route to request ARP (anchor rotation proof), then aggregated them and get AARP(Aggregated Anchor Rotation Proof)
 	r.POST("/request_anchor_rotation_proof", RequestAnchorRotationProof)
-
+	// Route to accept AARP, put to mempool and include to blocks
 	r.POST("/accept_aggregated_anchor_rotation_proof", AcceptAggregatedAnchorRotationProofs)
-	r.POST("/accept_leader_finalization_proof", AcceptAggregatedLeaderFinalizationProof)
+
+	// Route to accept ALFP (Aggregated Leader Finalization Proof) from modulr-core logic, put to mempool and include to blocks
+	r.POST("/accept_aggregated_leader_finalization_proof", AcceptAggregatedLeaderFinalizationProof)
 
 	return r.Handler
 }
